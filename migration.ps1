@@ -1,6 +1,5 @@
-# Define source and destination paths
-$SourcePath = "C:\SourceFolder"  # Update this
-$DestinationPath = "C:\DestinationFolder"  # Update this
+# Define Excel file path
+$CsvFilePath = "C:\MigrationData.csv"  # Update this
 $LogFile = "C:\MigrationLog.txt"
 
 # Ensure logging file exists
@@ -18,17 +17,13 @@ function LogMessage {
 # Start logging
 LogMessage "Migration started."
 
-# Check if source exists
-if (!(Test-Path $SourcePath)) {
-    LogMessage "ERROR: Source path does not exist. Exiting."
+# Read Excel file
+if (!(Test-Path $CsvFilePath)) {
+    LogMessage "ERROR: Excel file not found at $CsvFilePath. Exiting."
     exit
 }
 
-# Create destination folder if it doesn't exist
-if (!(Test-Path $DestinationPath)) {
-    New-Item -ItemType Directory -Path $DestinationPath -Force | Out-Null
-    LogMessage "Created destination folder: $DestinationPath"
-}
+$Data = Import-Csv -Path $CsvFilePath
 
 # Function to copy files and retain permissions
 function Copy-FilesWithPermissions {
@@ -70,8 +65,26 @@ function Copy-FilesWithPermissions {
     }
 }
 
-# Start migration
-Copy-FilesWithPermissions -Source $SourcePath -Destination $DestinationPath
+# Process each row in the Excel file
+foreach ($Row in $Data) {
+    $SourcePath = "C:\" + $Row."Source Path"
+    $DestinationPath = "C:\" + $Row."Destination Sub Folder"
+   
+    # Check if source exists
+    if (!(Test-Path $SourcePath)) {
+        LogMessage "ERROR: Source path does not exist: $SourcePath. Skipping."
+        continue
+    }
+   
+    # Create destination folder if it doesn't exist
+    if (!(Test-Path $DestinationPath)) {
+        New-Item -ItemType Directory -Path $DestinationPath -Force | Out-Null
+        LogMessage "Created destination folder: $DestinationPath"
+    }
+   
+    # Start migration for this entry
+    Copy-FilesWithPermissions -Source $SourcePath -Destination $DestinationPath
+}
 
 # Final logging
 LogMessage "Migration completed successfully."
