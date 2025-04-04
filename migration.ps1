@@ -1,25 +1,23 @@
-# Define Excel file path
+# Define CSV file path
 $CsvFilePath = "C:\MigrationData.csv"  # Update this
-$LogFile = "C:\MigrationLog.txt"
 
-# Ensure logging file exists
-if (!(Test-Path $LogFile)) {
-    New-Item -ItemType File -Path $LogFile -Force | Out-Null
-}
+# Generate a unique log file name with timestamp
+$TimeStamp = Get-Date -Format "yyyyMMdd_HHmmss"
+$LogFile = "C:\Logs\MigrationLog_$TimeStamp.txt"
 
 # Function to log messages
 function LogMessage {
     param ([string]$Message)
-    $TimeStamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
-    "$TimeStamp - $Message" | Out-File -Append -FilePath $LogFile
+    $LogTime = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+    "$LogTime - $Message" | Out-File -Append -FilePath $LogFile
 }
 
 # Start logging
 LogMessage "Migration started."
 
-# Read Excel file
+# Read CSV file
 if (!(Test-Path $CsvFilePath)) {
-    LogMessage "ERROR: Excel file not found at $CsvFilePath. Exiting."
+    LogMessage "ERROR: CSV file not found at $CsvFilePath. Exiting."
     exit
 }
 
@@ -65,26 +63,44 @@ function Copy-FilesWithPermissions {
     }
 }
 
-# Process each row in the Excel file
+# Keep track of processed folders
+$ProcessedFolders = @{}
+
+# Process each row in the CSV
 foreach ($Row in $Data) {
     $SourcePath = "C:\" + $Row."Source Path"
     $DestinationPath = "C:\" + $Row."Destination Sub Folder"
-   
+
+    # Check if a parent folder has already been copied
+    $ParentFolder = Split-Path -Path $SourcePath -Parent
+    if ($ProcessedFolders.ContainsKey($ParentFolder)) {
+        LogMessage "Skipping $SourcePath because its parent folder $ParentFolder has already been processed."
+        continue
+    }
+
     # Check if source exists
     if (!(Test-Path $SourcePath)) {
         LogMessage "ERROR: Source path does not exist: $SourcePath. Skipping."
         continue
     }
-   
+
     # Create destination folder if it doesn't exist
     if (!(Test-Path $DestinationPath)) {
         New-Item -ItemType Directory -Path $DestinationPath -Force | Out-Null
         LogMessage "Created destination folder: $DestinationPath"
     }
-   
+
+    # Mark folder as processed
+    if ((Test-Path $SourcePath) -and (Get-Item $SourcePath).PSIsContainer) {
+        $ProcessedFolders[$SourcePath] = $true
+    }
+
     # Start migration for this entry
     Copy-FilesWithPermissions -Source $SourcePath -Destination $DestinationPath
 }
 
 # Final logging
 LogMessage "Migration completed successfully."
+
+# Display the log file name
+Write-Host "Migration completed. Log file saved as: $LogFile"
